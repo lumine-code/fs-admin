@@ -1,57 +1,55 @@
 {
-  "name": "fs-admin",
-  "version": "0.20.0",
-  "description": "Manipulate files with escalated privileges",
+  "name": "@lumine-code/fs-admin",
+  "version": "1.0.0",
+  "description": "Manipulates files with escalated privileges.",
+  "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
   "scripts": {
-    "test": "standard && mocha",
-    "install": "prebuild-install || npm run build",
     "build": "node-gyp rebuild",
-    "prebuild-napi-x64": "prebuild -t 3 -r napi -a x64 --strip",
-    "prebuild-napi-ia32": "prebuild -t 3 -r napi -a ia32 --strip",
-    "prebuild-napi-arm64": "prebuild -t 3 -r napi -a arm64 --strip",
-    "upload": "node ./script/upload.js"
+    "pretest": "npm run build",
+    "test": "jasmine",
+    "lint": "eslint . --max-warnings 0 && prettier --check .",
+    "format": "prettier --write ."
   },
-  "keywords": [
-    "file",
-    "system",
-    "privileges"
+  "repository": "https://github.com/lumine-code/fs-admin",
+  "bugs": "https://github.com/lumine-code/fs-admin/issues",
+  "homepage": "https://github.com/lumine-code/fs-admin/",
+  "author": "lumine-code",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "files": [
+    "binding.gyp",
+    "index.js",
+    "index.d.ts",
+    "src"
   ],
-  "author": "Max Brunsfeld",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/atom/fs-admin.git"
-  },
-  "bugs": {
-    "url": "https://github.com/atom/fs-admin/issues"
-  },
+  "keywords": [
+    "fs-admin",
+    "privileges",
+    "elevation",
+    "sudo",
+    "uac",
+    "pkexec",
+    "lumine"
+  ],
+  "gypfile": true,
   "dependencies": {
-    "node-addon-api": "^4.2.0",
-    "prebuild-install": "^7.0.1"
+    "node-addon-api": "^8.9.1"
   },
   "devDependencies": {
-    "mocha": "^9.2.0",
-    "node-gyp": "^8.0.0",
-    "prebuild": "^11.0.0",
-    "standard": "^16.0.1",
-    "temp": "^0.9.0"
-  },
-  "binary": {
-    "napi_versions": [
-      3
-    ]
-  },
-  "config": {
-    "runtime": "napi",
-    "target": 3
-  },
-  "standard": {
-    "globals": [
-      "beforeEach",
-      "describe",
-      "it"
-    ]
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.2.2",
+    "globals": "^17.9.0",
+    "jasmine": "^6.3.0",
+    "node-gyp": "^11.4.2",
+    "prettier": "^3.9.6",
+    "temp": "^0.9.4"
   }
 }

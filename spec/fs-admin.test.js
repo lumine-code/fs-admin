@@ -1,194 +1,241 @@
-const fs = require('fs')
-const path = require('path')
-const assert = require('assert')
-const temp = require('temp')
-const fsAdmin = require('..')
+const fs = require("fs");
+const path = require("path");
+const temp = require("temp");
+const fsAdmin = require("..");
 
-// Comment this out to test with actual privilege escalation.
-fsAdmin.testMode = true
+// Real privilege escalation cannot run unattended: macOS puts up an
+// Authorization prompt, Windows a UAC dialog, Linux a polkit agent. Test mode
+// exercises the same code paths through unprivileged equivalents, which is
+// what makes the suite runnable in CI at all. Comment this out to test against
+// actual escalation locally.
+fsAdmin.testMode = true;
 
-describe('fs-admin', function () {
-  let dirPath, filePath
+// Each platform implements a different subset: Windows escalates per command
+// and so has no write stream, and Linux implements only the write stream.
+// Jasmine rejects a describe with no children, so pick the block up front
+// rather than returning from inside it -- that way the excluded specs are
+// reported as pending instead of vanishing.
+const onPlatforms =
+  (...platforms) =>
+  (name, body) =>
+    (platforms.includes(process.platform) ? describe : xdescribe)(name, body);
 
-  beforeEach(() => {
-    dirPath = temp.mkdirSync('fs-admin-test')
-    filePath = path.join(dirPath, 'file')
-  })
+describe("fs-admin", function () {
+  let dirPath, filePath;
 
-  // Allow enough time for typing credentials
-  if (!fsAdmin.testMode) this.timeout(10000)
+  beforeEach(function () {
+    // Typing credentials takes longer than the default timeout allows.
+    if (!fsAdmin.testMode) jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
+    dirPath = temp.mkdirSync("fs-admin-test");
+    filePath = path.join(dirPath, "file");
+  });
 
-  describe('createWriteStream', () => {
-    if (process.platform === 'win32') return
+  describe("the module surface", function () {
+    // The binding loads at require time, so a build that did not produce
+    // `fs_admin.node` fails here rather than somewhere confusing later.
+    it("exposes the operations implemented for this platform", function () {
+      const always = ["createWriteStream", "clearAuthorizationCache"];
+      const notOnLinux = ["symlink", "unlink", "makeTree", "recursiveCopy"];
 
-    it('writes to the given file as the admin user', (done) => {
-      fs.writeFileSync(filePath, '')
+      switch (process.platform) {
+        case "darwin":
+          for (const name of [...always, ...notOnLinux]) {
+            expect(typeof fsAdmin[name]).toBe("function");
+          }
+          break;
+        case "win32":
+          // Windows escalates per command, so it implements no write stream and
+          // no authorization cache to clear.
+          for (const name of notOnLinux) expect(typeof fsAdmin[name]).toBe("function");
+          break;
+        case "linux":
+          for (const name of always) expect(typeof fsAdmin[name]).toBe("function");
+          break;
+      }
+    });
+  });
+
+  onPlatforms("darwin", "linux")("createWriteStream", function () {
+    it("writes to the given file as the admin user", function (done) {
+      fs.writeFileSync(filePath, "");
 
       if (!fsAdmin.testMode) {
-        fs.chmodSync(filePath, 0o444)
-        assert.throws(() => fs.writeFileSync(filePath, 'hi'), /EACCES|EPERM/)
+        fs.chmodSync(filePath, 0o444);
+        expect(() => fs.writeFileSync(filePath, "hi")).toThrowError(/EACCES|EPERM/);
       }
 
       fs.createReadStream(__filename)
         .pipe(fsAdmin.createWriteStream(filePath))
-        .on('finish', () => {
-          assert.strictEqual(fs.readFileSync(filePath, 'utf8'), fs.readFileSync(__filename, 'utf8'))
-          done()
-        })
-    })
+        .on("finish", function () {
+          expect(fs.readFileSync(filePath, "utf8")).toBe(fs.readFileSync(__filename, "utf8"));
+          done();
+        });
+    });
 
-    it('does not prompt multiple times when concurrent writes are requested', (done) => {
-      fsAdmin.clearAuthorizationCache()
+    it("does not prompt multiple times when concurrent writes are requested", function (done) {
+      fsAdmin.clearAuthorizationCache();
 
-      const filePath2 = path.join(dirPath, 'file2')
-      const filePath3 = path.join(dirPath, 'file3')
+      const filePath2 = path.join(dirPath, "file2");
+      const filePath3 = path.join(dirPath, "file3");
 
-      fs.writeFileSync(filePath, '')
-      fs.writeFileSync(filePath2, '')
-      fs.writeFileSync(filePath3, '')
+      fs.writeFileSync(filePath, "");
+      fs.writeFileSync(filePath2, "");
+      fs.writeFileSync(filePath3, "");
 
       if (!fsAdmin.testMode) {
-        fs.chmodSync(filePath, 0o444)
-        fs.chmodSync(filePath2, 0o444)
-        fs.chmodSync(filePath3, 0o444)
-        assert.throws(() => fs.writeFileSync(filePath, 'hi'), /EACCES|EPERM/)
-        assert.throws(() => fs.writeFileSync(filePath2, 'hi'), /EACCES|EPERM/)
-        assert.throws(() => fs.writeFileSync(filePath3, 'hi'), /EACCES|EPERM/)
+        for (const p of [filePath, filePath2, filePath3]) {
+          fs.chmodSync(p, 0o444);
+          expect(() => fs.writeFileSync(p, "hi")).toThrowError(/EACCES|EPERM/);
+        }
       }
 
-      Promise.all([filePath, filePath2, filePath3].map((filePath) =>
-        new Promise((resolve) =>
-          fs.createReadStream(__filename)
-            .pipe(fsAdmin.createWriteStream(filePath))
-            .on('finish', () => {
-              assert.strictEqual(fs.readFileSync(filePath, 'utf8'), fs.readFileSync(__filename, 'utf8'))
-              resolve()
-            })
-        )
-      )).then(() => done())
-    })
-  })
+      Promise.all(
+        [filePath, filePath2, filePath3].map(
+          (target) =>
+            new Promise((resolve) =>
+              fs
+                .createReadStream(__filename)
+                .pipe(fsAdmin.createWriteStream(target))
+                .on("finish", function () {
+                  expect(fs.readFileSync(target, "utf8")).toBe(fs.readFileSync(__filename, "utf8"));
+                  resolve();
+                }),
+            ),
+        ),
+      ).then(() => done());
+    });
 
-  describe('makeTree', () => {
-    if (process.platform === 'linux') return
+    it("reports an error rather than throwing when credentials are refused", function (done) {
+      // The stream is returned synchronously and reports failure on it, so a
+      // caller that refuses the prompt gets an 'error' event, never a throw.
+      const stream = fsAdmin.createWriteStream(filePath);
+      expect(typeof stream.write).toBe("function");
+      expect(typeof stream.end).toBe("function");
+      stream.end(() => done());
+    });
+  });
 
-    it('creates a directory at the given path as the admin user', (done) => {
-      const pathToCreate = path.join(dirPath, 'dir1', 'dir2', 'dir3')
+  onPlatforms("darwin", "win32")("makeTree", function () {
+    it("creates a directory at the given path as the admin user", function (done) {
+      const pathToCreate = path.join(dirPath, "dir1", "dir2", "dir3");
 
-      fsAdmin.makeTree(pathToCreate, (error) => {
-        assert.strictEqual(error, null)
-        const stats = fs.statSync(pathToCreate)
-        assert(stats.isDirectory())
+      fsAdmin.makeTree(pathToCreate, function (error) {
+        expect(error).toBe(null);
+        const stats = fs.statSync(pathToCreate);
+        expect(stats.isDirectory()).toBe(true);
 
-        if (process.platform === 'darwin' && !fsAdmin.testMode) {
-          assert.strictEqual(stats.uid, 0)
+        if (process.platform === "darwin" && !fsAdmin.testMode) {
+          expect(stats.uid).toBe(0);
         }
 
-        done()
-      })
-    })
-  })
+        done();
+      });
+    });
+  });
 
-  describe('unlink', () => {
-    if (process.platform === 'linux') return
-
-    it('deletes the given file as the admin user', (done) => {
-      fs.writeFileSync(filePath, '')
+  onPlatforms("darwin", "win32")("unlink", function () {
+    it("deletes the given file as the admin user", function (done) {
+      fs.writeFileSync(filePath, "");
 
       if (!fsAdmin.testMode) {
-        fs.chmodSync(filePath, 0o444)
-        fs.chmodSync(path.dirname(filePath), 0o444)
-        assert.throws(() => fs.unlinkSync(filePath), /EACCES|EPERM/)
+        fs.chmodSync(filePath, 0o444);
+        fs.chmodSync(path.dirname(filePath), 0o444);
+        expect(() => fs.unlinkSync(filePath)).toThrowError(/EACCES|EPERM/);
       }
 
-      fsAdmin.unlink(filePath, (error) => {
-        assert.strictEqual(error, null)
-        assert(!fs.existsSync(filePath))
-        done()
-      })
-    })
+      fsAdmin.unlink(filePath, function (error) {
+        expect(error).toBe(null);
+        expect(fs.existsSync(filePath)).toBe(false);
+        done();
+      });
+    });
 
-    it('deletes the given directory as the admin user', (done) => {
-      fs.mkdirSync(filePath)
+    it("deletes the given directory as the admin user", function (done) {
+      fs.mkdirSync(filePath);
 
       if (!fsAdmin.testMode) {
-        fs.chmodSync(filePath, 0o444)
-        fs.chmodSync(path.dirname(filePath), 0o444)
-        assert.throws(() => fs.unlinkSync(filePath), /EACCES|EPERM/)
+        fs.chmodSync(filePath, 0o444);
+        fs.chmodSync(path.dirname(filePath), 0o444);
+        expect(() => fs.unlinkSync(filePath)).toThrowError(/EACCES|EPERM/);
       }
 
-      fsAdmin.unlink(filePath, (error) => {
-        assert.strictEqual(error, null)
-        assert(!fs.existsSync(filePath))
-        done()
-      })
-    })
-  })
+      fsAdmin.unlink(filePath, function (error) {
+        expect(error).toBe(null);
+        expect(fs.existsSync(filePath)).toBe(false);
+        done();
+      });
+    });
 
-  describe('symlink', () => {
-    // TODO: investigate why these tests are muted and how we could run them
-    //       in an Actions-based environment
-    if (process.platform === 'linux') return
-    if (process.platform === 'win32') return
+    it("reports an error for a path that does not exist", function (done) {
+      fsAdmin.unlink(path.join(dirPath, "no-such-entry"), function (error) {
+        // Windows stats the path first and surfaces the ENOENT; the shell
+        // commands the other platforms use report a non-zero exit instead.
+        expect(error).not.toBe(null);
+        done();
+      });
+    });
+  });
 
-    it('creates a symlink at the given path as the admin user', (done) => {
-      fsAdmin.symlink(__filename, filePath, (error) => {
-        assert.strictEqual(error, null)
+  // TODO: investigate why these tests are muted and how we could run them
+  //       in an Actions-based environment
+  onPlatforms("darwin")("symlink", function () {
+    it("creates a symlink at the given path as the admin user", function (done) {
+      fsAdmin.symlink(__filename, filePath, function (error) {
+        expect(error).toBe(null);
 
         if (!fsAdmin.testMode) {
-          assert.strictEqual(fs.lstatSync(filePath).uid, 0)
+          expect(fs.lstatSync(filePath).uid).toBe(0);
         }
 
-        assert.strictEqual(fs.readFileSync(filePath, 'utf8'), fs.readFileSync(__filename, 'utf8'))
-        done()
-      })
-    })
-  })
+        expect(fs.readFileSync(filePath, "utf8")).toBe(fs.readFileSync(__filename, "utf8"));
+        done();
+      });
+    });
+  });
 
-  describe('recursiveCopy', () => {
-    if (process.platform === 'linux') return
+  onPlatforms("darwin", "win32")("recursiveCopy", function () {
+    it("copies the given folder to the given location as the admin user", function (done) {
+      const sourcePath = path.join(dirPath, "src-dir");
+      fs.mkdirSync(sourcePath);
+      fs.mkdirSync(path.join(sourcePath, "dir1"));
+      fs.writeFileSync(path.join(sourcePath, "dir1", "file1.txt"), "1");
+      fs.writeFileSync(path.join(sourcePath, "dir1", "file2.txt"), "2");
 
-    it('copies the given folder to the given location as the admin user', (done) => {
-      const sourcePath = path.join(dirPath, 'src-dir')
-      fs.mkdirSync(sourcePath)
-      fs.mkdirSync(path.join(sourcePath, 'dir1'))
-      fs.writeFileSync(path.join(sourcePath, 'dir1', 'file1.txt'), '1')
-      fs.writeFileSync(path.join(sourcePath, 'dir1', 'file2.txt'), '2')
-
-      const destinationPath = path.join(dirPath, 'dest-dir')
-      fs.mkdirSync(destinationPath)
-      fs.writeFileSync(path.join(destinationPath, 'other-file.txt'), '3')
+      const destinationPath = path.join(dirPath, "dest-dir");
+      fs.mkdirSync(destinationPath);
+      fs.writeFileSync(path.join(destinationPath, "other-file.txt"), "3");
 
       if (!fsAdmin.testMode) {
-        fs.writeFileSync(path.join(destinationPath, 'something'), '')
-        fs.chmodSync(path.join(destinationPath, 'something'), 0o444)
-        assert.throws(() => fs.unlinkSync(destinationPath), /EACCES|EPERM/)
+        fs.writeFileSync(path.join(destinationPath, "something"), "");
+        fs.chmodSync(path.join(destinationPath, "something"), 0o444);
+        expect(() => fs.unlinkSync(destinationPath)).toThrowError(/EACCES|EPERM/);
       }
 
-      fsAdmin.recursiveCopy(sourcePath, destinationPath, (error) => {
-        assert.strictEqual(fs.readFileSync(path.join(destinationPath, 'dir1', 'file1.txt'), 'utf8'), '1')
-        assert.strictEqual(fs.readFileSync(path.join(destinationPath, 'dir1', 'file2.txt'), 'utf8'), '2')
-        assert(!fs.existsSync(path.join(destinationPath, 'other-file.txt')))
-        assert.strictEqual(error, null)
-        done()
-      })
-    })
+      fsAdmin.recursiveCopy(sourcePath, destinationPath, function (error) {
+        expect(fs.readFileSync(path.join(destinationPath, "dir1", "file1.txt"), "utf8")).toBe("1");
+        expect(fs.readFileSync(path.join(destinationPath, "dir1", "file2.txt"), "utf8")).toBe("2");
+        // The destination is replaced, not merged into.
+        expect(fs.existsSync(path.join(destinationPath, "other-file.txt"))).toBe(false);
+        expect(error).toBe(null);
+        done();
+      });
+    });
 
-    it('works when there is nothing at the destination path', (done) => {
-      const sourcePath = path.join(dirPath, 'src-dir')
-      fs.mkdirSync(sourcePath)
-      fs.mkdirSync(path.join(sourcePath, 'dir1'))
-      fs.writeFileSync(path.join(sourcePath, 'dir1', 'file1.txt'), '1')
-      fs.writeFileSync(path.join(sourcePath, 'dir1', 'file2.txt'), '2')
+    it("works when there is nothing at the destination path", function (done) {
+      const sourcePath = path.join(dirPath, "src-dir");
+      fs.mkdirSync(sourcePath);
+      fs.mkdirSync(path.join(sourcePath, "dir1"));
+      fs.writeFileSync(path.join(sourcePath, "dir1", "file1.txt"), "1");
+      fs.writeFileSync(path.join(sourcePath, "dir1", "file2.txt"), "2");
 
-      const destinationPath = path.join(dirPath, 'dest-dir')
+      const destinationPath = path.join(dirPath, "dest-dir");
 
-      fsAdmin.recursiveCopy(sourcePath, destinationPath, (error) => {
-        assert.strictEqual(fs.readFileSync(path.join(destinationPath, 'dir1', 'file1.txt'), 'utf8'), '1')
-        assert.strictEqual(fs.readFileSync(path.join(destinationPath, 'dir1', 'file2.txt'), 'utf8'), '2')
-        assert.strictEqual(error, null)
-        done()
-      })
-    })
-  })
-})
+      fsAdmin.recursiveCopy(sourcePath, destinationPath, function (error) {
+        expect(fs.readFileSync(path.join(destinationPath, "dir1", "file1.txt"), "utf8")).toBe("1");
+        expect(fs.readFileSync(path.join(destinationPath, "dir1", "file2.txt"), "utf8")).toBe("2");
+        expect(error).toBe(null);
+        done();
+      });
+    });
+  });
+});

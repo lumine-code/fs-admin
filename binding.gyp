@@ -13,8 +13,16 @@
   'targets': [
     {
       'target_name': 'fs_admin',
+      # An AsyncWorker that completes while the environment is tearing down
+      # (window reload, app quit) cannot call back into JS. Without these two
+      # defines node-addon-api escalates that to napi_fatal_error and aborts the
+      # process. The graceful path in Error::ThrowAsJavaScriptException needs
+      # NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS *and* NAPI_VERSION >= 10, since
+      # below 10 it expects napi_pending_exception instead of napi_cannot_run_js
+      # and never matches. napi_build_version is 10 on Node 22+ and Electron 43.
       'defines': [
-        "NAPI_VERSION=<(napi_build_version)",
+        'NAPI_VERSION=<(napi_build_version)',
+        'NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS',
       ],
       'cflags!': [ '-fno-exceptions' ],
       'cflags_cc!': [ '-fno-exceptions' ],

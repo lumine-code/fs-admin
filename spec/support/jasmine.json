@@ -1,0 +1,10 @@
+{
+  "spec_dir": "spec",
+  "spec_files": ["fs-admin.test.js"],
+  "helpers": [],
+  "env": {
+    "forbidDuplicateNames": false,
+    "stopSpecOnExpectationFailure": false,
+    "random": false
+  }
+}
