@@ -48,7 +48,7 @@
     "eslint-plugin-n": "^18.2.2",
     "globals": "^17.9.0",
     "jasmine": "^6.3.0",
-    "node-gyp": "^11.4.2",
+    "node-gyp": "^13.0.1",
     "prettier": "^3.9.6",
     "temp": "^0.9.4"
   }

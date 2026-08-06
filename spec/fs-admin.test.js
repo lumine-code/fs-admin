@@ -166,11 +166,20 @@ describe("fs-admin", function () {
       });
     });
 
-    it("reports an error for a path that does not exist", function (done) {
+    it("handles a path that does not exist the way its platform does", function (done) {
       fsAdmin.unlink(path.join(dirPath, "no-such-entry"), function (error) {
-        // Windows stats the path first and surfaces the ENOENT; the shell
-        // commands the other platforms use report a non-zero exit instead.
-        expect(error).not.toBe(null);
+        // The two implementations genuinely disagree here, and the difference
+        // is upstream's rather than something introduced by this fork. Windows
+        // stats the path first to choose between `rmdir` and `del`, so a
+        // missing path fails with ENOENT before any command runs. macOS shells
+        // out to `rm -rf`, which treats a missing path as success. Pinning both
+        // means a change to either is visible rather than silent.
+        if (process.platform === "win32") {
+          expect(error).not.toBe(null);
+          expect(error.code).toBe("ENOENT");
+        } else {
+          expect(error).toBe(null);
+        }
         done();
       });
     });
