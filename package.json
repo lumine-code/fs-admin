@@ -37,7 +37,6 @@
     "pkexec",
     "lumine"
   ],
-  "gypfile": true,
   "dependencies": {
     "node-addon-api": "^8.9.1"
   },

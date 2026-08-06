@@ -31,8 +31,9 @@ module.exports = [
   },
   {
     // `build/Release/fs_admin.node` is compiled from the published sources by
-    // node-gyp at install time (`gypfile: true`), so it is deliberately absent
-    // from `files` and cannot be resolved by a lint run over the checkout.
+    // `npm run build`, and by electron-rebuild when the editor installs this,
+    // so it is deliberately absent from `files` and cannot be resolved by a
+    // lint run over the checkout.
     files: ["index.js"],
     rules: {
       "n/no-missing-require": "off",
