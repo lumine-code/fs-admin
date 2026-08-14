@@ -2,9 +2,7 @@
 
 Manipulates files with escalated privileges.
 
-Used as a fallback when an ordinary filesystem call is refused for lack of
-permission: the editor retries the operation through this module, which prompts
-for credentials using the platform's own mechanism rather than storing any.
+Used as a fallback when an ordinary filesystem call is refused for lack of permission: the editor retries the operation through this module, which prompts for credentials using the platform's own mechanism rather than storing any.
 
 ## Features
 
@@ -21,8 +19,7 @@ for credentials using the platform's own mechanism rather than storing any.
 npm install @lumine-code/fs-admin
 ```
 
-The addon is compiled at install time from the sources in this repository.
-There is no install script and no prebuilt binary to download.
+The addon is compiled at install time from the sources in this repository. There is no install script and no prebuilt binary to download.
 
 ## Usage
 
@@ -37,9 +34,7 @@ fsAdmin.symlink(target, linkPath, (error) => {
 });
 ```
 
-Not every operation exists on every platform. Windows escalates per command and
-so exposes no `createWriteStream` or `clearAuthorizationCache`; Linux
-implements only those two. Check for the function before calling it.
+Not every operation exists on every platform. Windows escalates per command and so exposes no `createWriteStream` or `clearAuthorizationCache`; Linux implements only those two. Check for the function before calling it.
 
 ## Building
 
@@ -48,9 +43,7 @@ npm run build
 npm test
 ```
 
-The suite runs in test mode, because real escalation raises a dialog no
-automated run can answer. It covers the JavaScript surface, the callback and
-error paths, and that the addon loads.
+The suite runs in test mode, because real escalation raises a dialog no automated run can answer. It covers the JavaScript surface, the callback and error paths, and that the addon loads.
 
 ## Contributing
 
