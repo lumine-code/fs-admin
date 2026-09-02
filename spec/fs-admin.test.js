@@ -12,13 +12,13 @@ fsAdmin.testMode = true;
 
 // Each platform implements a different subset: Windows escalates per command
 // and so has no write stream, and Linux implements only the write stream.
-// Jasmine rejects a describe with no children, so pick the block up front
-// rather than returning from inside it -- that way the excluded specs are
-// reported as pending instead of vanishing.
+// Register each platform's contract only where that implementation exists.
+// The full matrix still covers every block without reporting the inapplicable
+// implementations as pending on the other runners.
 const onPlatforms =
   (...platforms) =>
   (name, body) =>
-    (platforms.includes(process.platform) ? describe : xdescribe)(name, body);
+    (platforms.includes(process.platform) ? describe : () => {})(name, body);
 
 describe("fs-admin", function () {
   let dirPath, filePath;
@@ -185,18 +185,21 @@ describe("fs-admin", function () {
     });
   });
 
-  // TODO: investigate why these tests are muted and how we could run them
-  //       in an Actions-based environment
-  onPlatforms("darwin")("symlink", function () {
+  onPlatforms("darwin", "win32")("symlink", function () {
     it("creates a symlink at the given path as the admin user", function (done) {
-      fsAdmin.symlink(__filename, filePath, function (error) {
+      const targetPath = path.join(dirPath, "target");
+      const targetFile = path.join(targetPath, "contents.txt");
+      fs.mkdirSync(targetPath);
+      fs.writeFileSync(targetFile, "linked");
+
+      fsAdmin.symlink(targetPath, filePath, function (error) {
         expect(error).toBe(null);
 
         if (!fsAdmin.testMode) {
           expect(fs.lstatSync(filePath).uid).toBe(0);
         }
 
-        expect(fs.readFileSync(filePath, "utf8")).toBe(fs.readFileSync(__filename, "utf8"));
+        expect(fs.readFileSync(path.join(filePath, "contents.txt"), "utf8")).toBe("linked");
         done();
       });
     });
