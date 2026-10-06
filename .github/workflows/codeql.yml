@@ -24,12 +24,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # binding.gyp selects a different set of sources per platform, so the
-        # C++ is analysed on each one. The JavaScript is identical everywhere
-        # and is analysed once.
+        # Windows and macOS compile different native sources. Linux calls
+        # pkexec from JavaScript and compiles no addon, so its code is covered
+        # by the JavaScript analysis rather than a C++ build analysis.
         include:
           - { language: javascript-typescript, os: ubuntu-latest }
-          - { language: cpp, os: ubuntu-latest }
           - { language: cpp, os: macos-latest }
           - { language: cpp, os: windows-latest }
     steps:
