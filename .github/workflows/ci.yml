@@ -43,14 +43,15 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
-      # `npm ci` compiles the addon through the gypfile; there is no install
-      # script and no prebuild to download.
-      - name: Install dependencies and build the addon
+      # The install script compiles the addon on macOS and Windows. Linux
+      # operations use system commands directly and skip native compilation.
+      - name: Install dependencies
         run: npm ci
       # The suite runs in test mode: real escalation puts up an Authorization
       # prompt on macOS, a UAC dialog on Windows and a polkit agent on Linux,
       # none of which a runner can answer. What is covered is the JS surface,
-      # the callback and error paths, and that the addon loads at all.
+      # the callback and error paths, native loading where required, and Linux
+      # operations without an addon.
       - name: Run tests
         run: npm test
       - name: Validate package contents

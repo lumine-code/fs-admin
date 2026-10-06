@@ -1,7 +1,7 @@
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const EventEmitter = require("events");
-const binding = require("./build/Release/fs_admin.node");
+const binding = process.platform === "linux" ? null : require("./build/Release/fs_admin.node");
 const fsAdmin = module.exports;
 
 fsAdmin.testMode = false;

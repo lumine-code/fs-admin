@@ -1,6 +1,6 @@
 {
   "spec_dir": "spec",
-  "spec_files": ["fs-admin.test.js"],
+  "spec_files": ["*.test.js"],
   "helpers": [],
   "env": {
     "stopSpecOnExpectationFailure": false,

@@ -58,9 +58,9 @@
           ],
         }],
         ['OS=="linux"', {
-          'sources': [
-            'src/fs-admin-linux.cc',
-          ],
+          # Direct rebuilds (including electron-rebuild) also have nothing to
+          # compile: Linux calls pkexec from JavaScript rather than the addon.
+          'type': 'none',
         }],
       ],
     }

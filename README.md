@@ -19,7 +19,7 @@ Used as a fallback when an ordinary filesystem call is refused for lack of permi
 npm install @lumine-code/fs-admin
 ```
 
-The addon is compiled at install time from the sources in this repository. There is no install script and no prebuilt binary to download.
+On macOS and Windows, the install script compiles the addon from the sources in this repository; there is no prebuilt binary to download. Linux uses the system's `pkexec` and `dd` directly and needs no native build toolchain.
 
 ## Usage
 
@@ -43,7 +43,7 @@ npm run build
 npm test
 ```
 
-The suite runs in test mode, because real escalation raises a dialog no automated run can answer. It covers the JavaScript surface, the callback and error paths, and that the addon loads.
+The suite runs in test mode, because real escalation raises a dialog no automated run can answer. It covers the JavaScript surface, the callback and error paths, native addon loading on macOS and Windows, and Linux operations without a binary. Building is a no-op on Linux.
 
 ## Contributing
 

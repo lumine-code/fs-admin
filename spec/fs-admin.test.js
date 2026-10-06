@@ -31,8 +31,8 @@ describe("fs-admin", function () {
   });
 
   describe("the module surface", function () {
-    // The binding loads at require time, so a build that did not produce
-    // `fs_admin.node` fails here rather than somewhere confusing later.
+    // macOS and Windows load their binding at require time; Linux exposes
+    // its JavaScript operations without needing a compiled addon.
     it("exposes the operations implemented for this platform", function () {
       const always = ["createWriteStream", "clearAuthorizationCache"];
       const notOnLinux = ["symlink", "unlink", "makeTree", "recursiveCopy"];
