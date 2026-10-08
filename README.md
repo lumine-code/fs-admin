@@ -2,6 +2,8 @@
 
 Manipulates files with escalated privileges.
 
+Fork of [pulsar-edit/fs-admin](https://github.com/pulsar-edit/fs-admin).
+
 Used as a fallback when an ordinary filesystem call is refused for lack of permission: the editor retries the operation through this module, which prompts for credentials using the platform's own mechanism rather than storing any.
 
 ## Features
