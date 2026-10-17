@@ -28,7 +28,8 @@
     "index.js",
     "index.d.ts",
     "script/build.js",
-    "src"
+    "src",
+    "THIRD_PARTY_NOTICES"
   ],
   "keywords": [
     "fs-admin",
