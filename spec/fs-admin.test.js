@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const temp = require("temp");
+const os = require("os");
 const fsAdmin = require("..");
 
 // Real privilege escalation cannot run unattended: macOS puts up an
@@ -26,8 +26,12 @@ describe("fs-admin", function () {
   beforeEach(function () {
     // Typing credentials takes longer than the default timeout allows.
     if (!fsAdmin.testMode) jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
-    dirPath = temp.mkdirSync("fs-admin-test");
+    dirPath = fs.mkdtempSync(path.join(os.tmpdir(), "fs-admin-test-"));
     filePath = path.join(dirPath, "file");
+  });
+
+  afterEach(function () {
+    fs.rmSync(dirPath, { recursive: true, force: true });
   });
 
   describe("the module surface", function () {
